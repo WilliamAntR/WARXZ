@@ -1,0 +1,62 @@
+import numpy as np
+import torch
+
+def mixup_data(x, y, alpha=0.4):
+    """
+    x : batch gambar  [B, C, H, W]
+    y : batch label   [B]
+    alpha : parameter distribusi Beta
+    """
+    if alpha > 0:
+        # lambda diambil dari distribusi Beta
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1.0
+
+    batch_size = x.size(0)
+    
+    # Shuffle index untuk pasangan gambar
+    index = torch.randperm(batch_size).to(x.device)
+
+    # Campur gambar
+    mixed_x = lam * x + (1 - lam) * x[index]
+    
+    # Label asli dan label pasangan
+    y_a, y_b = y, y[index]
+    
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    """Loss function untuk Mixup"""
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
+
+# Cara pakai di training loop:
+for images, labels in train_loader:
+    images, labels = images.to(device), labels.to(device)
+    
+    # Terapkan mixup
+    mixed_images, labels_a, labels_b, lam = mixup_data(images, labels, alpha=0.4)
+    
+    optimizer.zero_grad()
+    outputs = model(mixed_images)
+    
+    # Hitung loss dengan mixup criterion
+    loss = mixup_criterion(criterion, outputs, labels_a, labels_b, lam)
+    loss.backward()
+    optimizer.step()
+```
+
+---
+
+## 2. Cutout
+
+**Konsep:** Sebagian area gambar dihapus (diisi warna hitam/nol) secara acak. Model dipaksa belajar dari fitur yang tidak lengkap sehingga lebih robust.
+```
+Gambar asli          Setelah Cutout
+┌─────────────┐      ┌─────────────┐
+│  retina     │      │  ret██████  │
+│  pembuluh   │  →   │  ██████████ │
+│  darah      │      │  darah      │
+└─────────────┘      └─────────────┘
